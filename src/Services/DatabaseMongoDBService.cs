@@ -4,30 +4,26 @@ using MongoDB.Driver;
 
 namespace LLMChatbotApi.Services;
 
-public class DatabaseMongoDBService
+public class DatabaseMongoDBService : DatabaseServiceBase<DatabaseMongoDBService>
 {
     private readonly IMongoDatabase mongoDB;
-    private readonly ILogger<DatabaseMongoDBService> mongoLogger;
 
-    public DatabaseMongoDBService (IMongoDatabase mongo, ILogger<DatabaseMongoDBService> logger)
+   public DatabaseMongoDBService(IMongoDatabase mongo, ILogger<DatabaseMongoDBService> logger)
+        : base(logger)
     {
         mongoDB = mongo;
-        mongoLogger = logger;
     }
-
-    public async Task VerifyNoSQLCOnnection()
+    public override async Task VerifyConnection()
     {
         try
         {
-            var pingCommando = new BsonDocument("ping", 1);
-            await mongoDB.RunCommandAsync<BsonDocument>(pingCommando);
-
-            mongoLogger.LogInformation("Conexão MongoDB estabelecida");
-
+            var pingCommand = new BsonDocument("ping", 1);
+            await mongoDB.RunCommandAsync<BsonDocument>(pingCommand);
+            Logger.LogInformation("Conexão MongoDB estabelecida");
         }
         catch (MongoException ex)
         {
-            mongoLogger.LogError(ex,"Falha na conexão MongoDB: {Message}", ex.Message);
+            Logger.LogError(ex, "Falha na conexão MongoDB: {Message}", ex.Message);
             throw new DatabaseConnectionException("Erro MongoDB", ex);
         }
     }

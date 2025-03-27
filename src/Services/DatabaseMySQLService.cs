@@ -3,29 +3,30 @@ using MySqlConnector;
 
 namespace LLMChatbotApi.Services;
 
-public class DatabaseMySQLService
+public class DatabaseMySQLService : DatabaseServiceBase<DatabaseMySQLService>
 {
     private readonly MySqlConnection sqlconnection;
-    private readonly ILogger<DatabaseMySQLService> mysqllogger;
 
     public DatabaseMySQLService(MySqlConnection connection, ILogger<DatabaseMySQLService> logger)
+        :base(logger)
     {
         sqlconnection = connection;
-        mysqllogger = logger;
     }
 
-    public async Task VerifyConnectionSQL()
+    public MySqlConnection GetConnection() => sqlconnection;
+
+    public override async Task VerifyConnection()
     {
         try
         {
             await sqlconnection.OpenAsync();
-            mysqllogger.LogInformation("Conexão MySQL estabelecida");
+            Logger.LogInformation("Conexão MySQL estabelecida");
         }
         catch (MySqlException ex)
         {
-            mysqllogger.LogError(ex, "Falha na conexão MySQL: {ErrorCode} {ErorMessage}",ex.Number ,ex.Message);
+            Logger.LogError(ex, "Falha na conexão MySQL: {ErrorCode} {ErorMessage}",ex.Number ,ex.Message);
             throw new DatabaseConnectionException("Erro Mysql", ex);
         }
     }
 
-}
+};
