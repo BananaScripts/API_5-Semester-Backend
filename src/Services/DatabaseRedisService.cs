@@ -3,38 +3,38 @@ using StackExchange.Redis;
 
 namespace LLMChatbotApi.Services;
 
-public class DatabaseRedisService
+public class DatabaseRedisService: DatabaseServiceBase<DatabaseRedisService>
 {
     private readonly IConnectionMultiplexer  redisconnection;
-    private readonly ILogger<DatabaseRedisService> redisLogger;
+
     public DatabaseRedisService(string connection, ILogger<DatabaseRedisService> logger )
+        :base(logger)
     {
-        redisLogger = logger;
         try
         {
             redisconnection = ConnectionMultiplexer.Connect(connection);
         }
         catch (RedisConnectionException ex)
         {
-            redisLogger.LogError(ex, "Falha na conexão com Redis");
+            Logger.LogError(ex, "Falha na conexão com Redis");
             throw new DatabaseConnectionException("Erro Redis", ex);
         }
     }
 
-    public async Task VerifyConnectionRedis()
+    public override async Task VerifyConnection()
     {
         try
         {
             var db = redisconnection.GetDatabase();
             await db.PingAsync();
-            redisLogger.LogInformation("Conexão Redis Estabelecida");
+            Logger.LogInformation("Conexão Redis Estabelecida");
         }
         catch (RedisConnectionException ex)
         {
-            redisLogger.LogError(ex, "Falha na conexão Redis: {Message}", ex.Message);
+            Logger.LogError(ex, "Falha na conexão Redis: {Message}", ex.Message);
             throw;
         }
     }
 
     public IDatabase GetDatabase() => redisconnection.GetDatabase();
-}
+};

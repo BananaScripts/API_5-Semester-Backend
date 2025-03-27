@@ -1,13 +1,63 @@
+using System.Text;
+using LLMChatbotApi.Config;
 using LLMChatbotApi.exceptions;
 using LLMChatbotApi.Services;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
 using MongoDB.Driver;
 using MySqlConnector;
 using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
 
+
+builder.Services.Configure<Settings>(
+    builder.Configuration.GetSection("Settings")
+);
+
+// Configuração da autenticação JWT
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(
+                Encoding.ASCII.GetBytes(builder.Configuration["Settings:TokenPrivateKey"]!)),
+            ValidateIssuer = false,
+            ValidateAudience = false,
+            ValidateLifetime = true
+        };
+
+        options.Events = new JwtBearerEvents
+        {
+            OnTokenValidated = async context =>
+            {
+                var redisService = context.HttpContext.RequestServices.GetRequiredService<DatabaseRedisService>();
+
+                var token = context.HttpContext.Request.Headers["Authorization"]
+                    .ToString()
+                    .Replace("Bearer ", "");
+
+                if (string.IsNullOrEmpty(token))
+                {
+                    context.Fail("Token não encontrado");
+                    return;
+                }
+
+                var db = redisService.GetDatabase();
+                var exists = await db.KeyExistsAsync($"session:{token}");
+
+                if (!exists)
+                {
+                    context.Fail("Token revogado ou sessão expirada");
+                }
+            }
+        };
+    }); ;
+
 // Configura a conexão com o serviço do MySQL
-builder.Services.AddScoped(provider => 
+builder.Services.AddScoped(provider =>
     new MySqlConnection(builder.Configuration.GetConnectionString("MySQL")));
 
 builder.Services.AddScoped<DatabaseMySQLService>();
@@ -17,7 +67,7 @@ var mongoConnection = builder.Configuration.GetConnectionString("MongoDB");
 var mongoDatabase = builder.Configuration.GetConnectionString("MongoDatabase");
 
 builder.Services.AddSingleton<IMongoClient>(_ => new MongoClient(mongoConnection));
-builder.Services.AddScoped(provider => 
+builder.Services.AddScoped(provider =>
     provider.GetRequiredService<IMongoClient>().GetDatabase(mongoDatabase));
 builder.Services.AddScoped<DatabaseMongoDBService>();
 
@@ -26,17 +76,22 @@ builder.Services.AddScoped<DatabaseRedisService>(provider =>
 {
     var config = provider.GetRequiredService<IConfiguration>();
     var logger = provider.GetRequiredService<ILogger<DatabaseRedisService>>();
-    var connectionString = config.GetConnectionString("Redis") 
+    var connectionString = config.GetConnectionString("Redis")
         ?? throw new ArgumentNullException("ConnectionStrings:Redis");
     return new DatabaseRedisService(connectionString, logger);
 });
 
+
+builder.Services.AddScoped<TokenService>();
 // Add services to the container.
 builder.Services.AddControllers();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
 var app = builder.Build();
+
+app.UseAuthentication();
+app.UseAuthorization();
 
 // Irá mostrar se conectou com os Bancos
 using (var scope = app.Services.CreateScope())
@@ -48,7 +103,7 @@ using (var scope = app.Services.CreateScope())
 
     try
     {
-        await mysqlService.VerifyConnectionSQL();
+        await mysqlService.VerifyConnection();
     }
     catch (Exception ex)
     {
@@ -58,7 +113,7 @@ using (var scope = app.Services.CreateScope())
 
     try
     {
-        await  mongoService.VerifyNoSQLCOnnection();
+        await mongoService.VerifyConnection();
     }
     catch (Exception ex)
     {
@@ -68,7 +123,7 @@ using (var scope = app.Services.CreateScope())
 
     try
     {
-        await redisService.VerifyConnectionRedis();
+        await redisService.VerifyConnection();
     }
     catch (Exception ex)
     {
