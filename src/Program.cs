@@ -1,6 +1,8 @@
 using System.Text;
 using LLMChatbotApi.Config;
 using LLMChatbotApi.exceptions;
+using LLMChatbotApi.Interfaces;
+using LLMChatbotApi.Repositories;
 using LLMChatbotApi.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
@@ -61,6 +63,8 @@ builder.Services.AddScoped(provider =>
     new MySqlConnection(builder.Configuration.GetConnectionString("MySQL")));
 
 builder.Services.AddScoped<DatabaseMySQLService>();
+
+builder.Services.AddScoped<IUserRepository, UserRepository>();
 
 // Configura a conexão com o serviço do MonogDB
 var mongoConnection = builder.Configuration.GetConnectionString("MongoDB");
