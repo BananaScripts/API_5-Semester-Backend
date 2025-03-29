@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text;
 using LLMChatbotApi.Config;
 using LLMChatbotApi.exceptions;
@@ -12,10 +13,22 @@ using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
 
-
 builder.Services.Configure<Settings>(
     builder.Configuration.GetSection("Settings")
 );
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("CorsPolicy",
+        builder => builder.AllowAnyOrigin()  // Permitir qualquer origem
+            .AllowAnyMethod()  // Permitir qualquer método
+            .AllowAnyHeader());  // Permitir qualquer cabeçalho
+});
+
+builder.WebHost.ConfigureKestrel(serverOptions =>
+{
+    serverOptions.Listen(IPAddress.Any, 7254);  // Permite conexões externas na porta 7254
+});
 
 // Configuração da autenticação JWT
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -86,7 +99,6 @@ builder.Services.AddScoped<DatabaseRedisService>(provider =>
     return new DatabaseRedisService(connectionString, logger);
 });
 
-
 builder.Services.AddScoped<TokenService>();
 // Add services to the container.
 builder.Services.AddControllers();
@@ -146,6 +158,8 @@ if (app.Environment.IsDevelopment())
         options.DocumentPath = "/openapi/v1.json";
     });
 }
+
+app.UseCors("CorsPolicy");
 
 app.UseHttpsRedirection();
 
