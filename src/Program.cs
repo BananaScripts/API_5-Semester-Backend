@@ -68,13 +68,14 @@ builder.Services.AddScoped<IUserRepository, UserRepository>();
 
 // Configura a conexão com o serviço do MonogDB
 var mongoConnection = builder.Configuration.GetConnectionString("MongoDB");
+//O erro ta no "MongoDatabase"
 var mongoDatabase = builder.Configuration.GetConnectionString("MongoDatabase");
 
 builder.Services.AddSingleton<IMongoClient>(_ => new MongoClient(mongoConnection));
 builder.Services.AddScoped(provider =>
     provider.GetRequiredService<IMongoClient>().GetDatabase(mongoDatabase));
 builder.Services.AddScoped<DatabaseMongoDBService>();
-
+builder.Services.AddScoped<MessageManagementService>();
 // Configura a conexão com o serviço do Redis
 builder.Services.AddScoped<DatabaseRedisService>(provider =>
 {

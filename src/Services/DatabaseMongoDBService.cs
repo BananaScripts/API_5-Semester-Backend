@@ -7,9 +7,9 @@ namespace LLMChatbotApi.Services;
 public class DatabaseMongoDBService : DatabaseServiceBase<DatabaseMongoDBService>
 {
     private readonly IMongoDatabase mongoDB;
-
-   public DatabaseMongoDBService(IMongoDatabase mongo, ILogger<DatabaseMongoDBService> logger)
-        : base(logger)
+    public IMongoDatabase GetDatabase() => mongoDB;
+    public DatabaseMongoDBService(IMongoDatabase mongo, ILogger<DatabaseMongoDBService> logger)
+         : base(logger)
     {
         mongoDB = mongo;
     }
