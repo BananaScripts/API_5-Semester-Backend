@@ -57,7 +57,7 @@ public class TokenService
             var key = $"session:{token}";
             var userJson = System.Text.Json.JsonSerializer.Serialize(user);
 
-            _logger.LogInformation("Armazenando no Redis: {Key} → {Value}", key, userJson);
+            _logger.LogInformation("Armazenando no Redis: {Key} -> {Value}", key, userJson);
 
             await db.StringSetAsync(
                 key,
