@@ -1,0 +1,6 @@
+@LLMChatbotApi_HostAddress = http://localhost:5073
+
+GET {{LLMChatbotApi_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
