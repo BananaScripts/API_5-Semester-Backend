@@ -1,6 +1,3 @@
-
-
-
 using LLMChatbotApi.Enums;
 using LLMChatbotApi.Models;
 using LLMChatbotApi.Services;
@@ -56,13 +53,13 @@ public class ChatController : ControllerBase
 		if (!success) return NotFound();
 		return NoContent();
 	}
-    [HttpDelete("{chatId}")]
-    public async Task<IActionResult> DeleteChat(string chatId)
-    {
-        var success = await _chatService.DeleteChatAsync(chatId);
-        if (!success) return NotFound();
-        return NoContent();
-    }
+	[HttpDelete("{chatId}")]
+	public async Task<IActionResult> DeleteChat(string chatId)
+	{
+		var success = await _chatService.DeleteChatAsync(chatId);
+		if (!success) return NotFound();
+		return NoContent();
+	}
 	[HttpPatch("{chatId}/open")]
 	public async Task<IActionResult> OpenChat(string chatId)
 	{

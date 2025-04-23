@@ -18,6 +18,7 @@ public class UserCreateDTO
 
     [Required]
     [Column("user_password")]
+    [RegularExpression(@"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$", ErrorMessage = "Senha deve conter maiúsculas, minúsculas e números")]
     [StringLength(256, MinimumLength = 6, ErrorMessage = "A senha deve conter pelo menos 6 caracteres")]
     public required string Password {set;get;}
 
