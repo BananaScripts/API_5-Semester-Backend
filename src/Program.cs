@@ -110,6 +110,8 @@ builder.Services.AddOpenApi();
 
 var app = builder.Build();
 
+app.UseWebSockets();
+
 app.UseAuthentication();
 app.UseAuthorization();
 

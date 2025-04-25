@@ -1,4 +1,4 @@
-import datetime
+from datetime import datetime
 import os
 import json
 import redis
@@ -10,7 +10,6 @@ from dotenv import load_dotenv
 import requests
 import tempfile
 from langchain_community.document_loaders import PyPDFLoader, UnstructuredFileLoader
-
 
 load_dotenv()
 
@@ -54,10 +53,14 @@ class LLMService:
     def get_agent_config(self, agent_id: int) -> Optional[Dict]:
         """Busca configuração do agente na API C#"""
         try:
+            headers = {
+                "Authorization": f"Bearer {os.getenv('CSHARP_API_TOKEN')}"
+            }
             response = requests.get(
-                f"http://{os.getenv('CSHARP_API_HOST', 'localhost')}:7254/api/agents/{agent_id}"
+                f"http://{os.getenv('CSHARP_API_HOST', 'localhost')}:7254/api/agent/Agent/{agent_id}",
+                headers=headers
             )
-            return response.json()['Config']
+            return response.json()['config']
         except Exception as e:
             print(f"Erro ao buscar config do agente: {str(e)}")
             return None
@@ -90,19 +93,21 @@ class LLMService:
     def handle_message(self, data: Dict):
         """Processa uma mensagem recebida"""
         try:
-        
+            print("Processando mensagem...")
             config = self.get_agent_config(data['agent_id'])
             if not config:
+                print("Config não encontrada!")
                 return
-                
+            print("Config encontrada, continuando...")
             context = self.get_context(data['agent_id'])
 
+            print("Context encontrado, continuando...")
             response = self.generate_response(
                 config['systemPrompt'],
                 context,
                 data['message']
             )
-            
+            print("Response gerada com sucesso")
             # Salvar no MongoDB
             self.db.history.insert_one({
                 "conversation_id": data['conversation_id'],
@@ -156,6 +161,7 @@ class LLMService:
         print("Serviço LLM iniciado...")
         for message in pubsub.listen():
             if message['type'] == 'message':
+                print("Mensagem recebida...")
                 try:
                     data = json.loads(message['data'])
                     self.handle_message(data)

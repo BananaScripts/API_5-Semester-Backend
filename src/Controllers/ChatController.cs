@@ -2,6 +2,11 @@ using LLMChatbotApi.Enums;
 using LLMChatbotApi.Models;
 using LLMChatbotApi.Services;
 using Microsoft.AspNetCore.Mvc;
+using System.Net.WebSockets;
+using System.Text;
+using System.Text.Json;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace LLMChatbotApi.Controllers;
 
@@ -66,5 +71,70 @@ public class ChatController : ControllerBase
 		var success = await _chatService.ChangeChatStatusAsync(chatId, ChatStatus.OPEN);
 		if (!success) return NotFound();
 		return NoContent();
+	}
+	[HttpGet("/ws/chat/{userId}")]
+	[Authorize(Roles = "Admin,Curador")]
+	public async Task GetWebSocket(
+		string userId,
+		[FromQuery] int agentId,
+		[FromServices] DatabaseRedisService redisService)
+	{
+		if (!HttpContext.WebSockets.IsWebSocketRequest)
+		{
+			HttpContext.Response.StatusCode = 400;
+			return;
+		}
+
+		using var webSocket = await HttpContext.WebSockets.AcceptWebSocketAsync();
+		var buffer = new byte[1024 * 4];
+		var pubsub = redisService.GetDatabase().Multiplexer.GetSubscriber();
+		using var cts = new CancellationTokenSource();
+		var token = cts.Token;
+
+		// Escuta respostas e envia via WebSocket
+		var listener = Task.Run(async () =>
+		{
+			await pubsub.SubscribeAsync($"user:{userId}:responses", async (channel, message) =>
+			{
+				if (webSocket.State != WebSocketState.Open) return;
+
+				var msgBytes = Encoding.UTF8.GetBytes(message!);
+				try
+				{
+					await webSocket.SendAsync(
+						new ArraySegment<byte>(msgBytes),
+						WebSocketMessageType.Text,
+						true,
+						token
+					);
+				}
+				catch (WebSocketException) { }
+			});
+		}, token);
+
+		while (webSocket.State == WebSocketState.Open)
+		{
+			var result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), token);
+			if (result.MessageType == WebSocketMessageType.Close)
+			{
+				await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Conexão encerrada", token);
+				break;
+			}
+
+			var userMessage = Encoding.UTF8.GetString(buffer, 0, result.Count);
+
+			var payload = new
+			{
+				conversation_id = Guid.NewGuid().ToString(),
+				user_id = userId,
+				agent_id = agentId,
+				message = userMessage
+			};
+
+			var payloadJson = JsonSerializer.Serialize(payload);
+			await pubsub.PublishAsync("chat_messages", payloadJson);
+		}
+
+		cts.Cancel();
 	}
 }
