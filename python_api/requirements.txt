@@ -1,0 +1,6 @@
+python-dotenv 
+redis 
+openai 
+pymongo 
+langchain_community
+langchain
