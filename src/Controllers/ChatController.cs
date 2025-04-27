@@ -6,7 +6,7 @@ using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
+using StackExchange.Redis;
 
 namespace LLMChatbotApi.Controllers;
 
@@ -94,7 +94,7 @@ public class ChatController : ControllerBase
 		// Escuta respostas e envia via WebSocket
 		var listener = Task.Run(async () =>
 		{
-			await pubsub.SubscribeAsync($"user:{userId}:responses", async (channel, message) =>
+			await pubsub.SubscribeAsync(RedisChannel.Pattern($"user:{userId}:responses"), async (channel, message) =>
 			{
 				if (webSocket.State != WebSocketState.Open) return;
 
@@ -132,7 +132,7 @@ public class ChatController : ControllerBase
 			};
 
 			var payloadJson = JsonSerializer.Serialize(payload);
-			await pubsub.PublishAsync("chat_messages", payloadJson);
+			await pubsub.PublishAsync(RedisChannel.Literal("chat_messages"), payloadJson);
 		}
 
 		cts.Cancel();
