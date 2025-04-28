@@ -47,32 +47,33 @@ public class AgentRepository : IAgentRepository
 
     public async Task<Agent> Update(Agent agent)
     {
-        using var connection = _mysqlService.GetConnection();
-        try
+        using(var connection = _mysqlService.GetConnection())
         {
-            await connection.OpenAsync();
+            try
+            {
+                await connection.OpenAsync();
+                using var cmd = new MySqlCommand(
+                    "UPDATE agent SET " +
+                    "agent_name = @name, " +
+                    "agent_description = @description, " +
+                    "agent_config = @config, " +
+                    "agent_status = @status " +
+                    "WHERE agent_id = @id", connection);
 
-            using var cmd = new MySqlCommand(
-                "UPDATE agent SET " +
-                "agent_name = @name, " +
-                "agent_description = @description, " +
-                "agent_config = @config, " +
-                "agent_status = @status " +
-                "WHERE agent_id = @id", connection);
+                cmd.Parameters.AddWithValue("@name", agent.agent_name);
+                cmd.Parameters.AddWithValue("@description", agent.agent_description);
+                cmd.Parameters.AddWithValue("@config", agent.agent_config);
+                cmd.Parameters.AddWithValue("@status", (int)agent.agent_status);
+                cmd.Parameters.AddWithValue("@id", agent.agent_id);
 
-            cmd.Parameters.AddWithValue("@name", agent.agent_name);
-            cmd.Parameters.AddWithValue("@description", agent.agent_description);
-            cmd.Parameters.AddWithValue("@config", agent.agent_config);
-            cmd.Parameters.AddWithValue("@status", (int)agent.agent_status);
-            cmd.Parameters.AddWithValue("@id", agent.agent_id);
-
-            await cmd.ExecuteNonQueryAsync();
-            return agent;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Erro ao atualizar agente ID: {AgentId}", agent.agent_id);
-            throw;
+                await cmd.ExecuteNonQueryAsync();
+                return agent;
+            }
+            catch (MySqlException ex)
+            {
+                _logger.LogError(ex, "Erro ao atualizar agente ID: {AgentId}", agent.agent_id);
+                throw;
+            }
         }
     }
 
@@ -207,8 +208,8 @@ public class AgentRepository : IAgentRepository
         {
             agent_id = reader.GetInt32("agent_id"),
             agent_name = reader.GetString("agent_name"),
-            agent_description = reader.IsDBNull(reader.GetOrdinal("agent_description")) 
-                ? null 
+            agent_description = reader.IsDBNull(reader.GetOrdinal("agent_description"))
+                ? null
                 : reader.GetString("agent_description"),
             agent_config = reader.GetString("agent_config"),
             agent_status = (AgentStatus)reader.GetInt32("agent_status"),
