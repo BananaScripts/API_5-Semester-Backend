@@ -3,7 +3,6 @@ using LLMChatbotApi.Custom;
 using LLMChatbotApi.DTO;
 using LLMChatbotApi.Interfaces;
 using LLMChatbotApi.Models;
-using LLMChatbotApi.Repositories;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 

@@ -10,7 +10,7 @@ Para configurar a base do projeto no VSCode, segui este guia:
 ## Estrutura Atual do Sistema  
 
 Atualmente, o sistema possui apenas um **controller provisório**, chamado `TemporaryUser`.  
-Esse controller foi gerado a partir do template padrão do ASP.NET Core e servirá como base inicial para o desenvolvimento.  
+Esse controller foi g erado a partir do template padrão do ASP.NET Core e servirá como base inicial para o desenvolvimento.  
 
 ---
 

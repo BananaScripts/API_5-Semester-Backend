@@ -13,6 +13,8 @@ using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Services.AddSingleton<IConfiguration>(builder.Configuration);
+
 builder.Services.Configure<Settings>(
     builder.Configuration.GetSection("Settings")
 );
@@ -78,6 +80,7 @@ builder.Services.AddScoped(provider =>
 builder.Services.AddScoped<DatabaseMySQLService>();
 
 builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<IAgentRepository, AgentRepository>();
 
 // Configura a conexão com o serviço do MonogDB
 var mongoConnection = builder.Configuration.GetConnectionString("MongoDB");
@@ -106,6 +109,8 @@ builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 
 var app = builder.Build();
+
+app.UseWebSockets();
 
 app.UseAuthentication();
 app.UseAuthorization();
