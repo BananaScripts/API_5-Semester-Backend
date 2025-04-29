@@ -9,9 +9,9 @@ public class Message
 {
 	public Message(string _sender, string _text, DateTime _timestamp)
 	{
-		Sender = _sender;
+		    Sender = _sender;
         Text = _text;
-        Timestamp = _timestamp;
+        Timestamp = _timestamp; 
 	}
 
     [BsonElement("sender")]

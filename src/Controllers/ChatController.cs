@@ -1,6 +1,3 @@
-using LLMChatbotApi.Enums;
-using LLMChatbotApi.Models;
-using LLMChatbotApi.Services;
 using Microsoft.AspNetCore.Mvc;
 using System.Net.WebSockets;
 using System.Text;
@@ -9,6 +6,7 @@ using Microsoft.AspNetCore.Authorization;
 using LLMChatbotApi.DTO;
 using System.Runtime.InteropServices;
 using StackExchange.Redis;
+using LLMChatbotApi.Services;
 
 namespace LLMChatbotApi.Controllers;
 
@@ -223,7 +221,4 @@ public async Task WebSocketHandler(
             await pubsub.UnsubscribeAsync(userChannel.Value);
         cts.Cancel();
     }
-}
-
-
 }
