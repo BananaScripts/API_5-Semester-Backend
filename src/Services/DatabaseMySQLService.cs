@@ -5,28 +5,31 @@ namespace LLMChatbotApi.Services;
 
 public class DatabaseMySQLService : DatabaseServiceBase<DatabaseMySQLService>
 {
-    private readonly MySqlConnection sqlconnection;
+    private readonly string _connectionString;
 
-    public DatabaseMySQLService(MySqlConnection connection, ILogger<DatabaseMySQLService> logger)
-        :base(logger)
+    public DatabaseMySQLService(IConfiguration configuration, ILogger<DatabaseMySQLService> logger)
+        : base(logger)
     {
-        sqlconnection = connection;
+        _connectionString = configuration.GetConnectionString("MySQL") ?? throw new ArgumentNullException("Connection string 'DefaultConnection' not found.");
     }
 
-    public MySqlConnection GetConnection() => sqlconnection;
+    public MySqlConnection GetConnection()
+    {
+        return new MySqlConnection(_connectionString);
+    }
 
     public override async Task VerifyConnection()
     {
         try
         {
-            await sqlconnection.OpenAsync();
+            await using var connection = GetConnection();
+            await connection.OpenAsync();
             Logger.LogInformation("Conexão MySQL estabelecida");
         }
         catch (MySqlException ex)
         {
-            Logger.LogError(ex, "Falha na conexão MySQL: {ErrorCode} {ErorMessage}",ex.Number ,ex.Message);
+            Logger.LogError(ex, "Falha na conexão MySQL: {ErrorCode} {ErrorMessage}", ex.Number, ex.Message);
             throw new DatabaseConnectionException("Erro Mysql", ex);
         }
     }
-
-};
+}
