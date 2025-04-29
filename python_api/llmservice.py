@@ -74,11 +74,11 @@ class LLMService:
             print(f"Erro MongoDB: {str(e)}")
             return ""
     
-    def generate_response(self, system_prompt: str, context: str, message: str) -> str:
+    def generate_response(self, _model:str, system_prompt: str, context: str, message: str) -> str:
         """Gera resposta usando LLM"""
         try:
             completion = self.openai.chat.completions.create(
-                model="deepseek/deepseek-v3-base:free",
+                model=_model,
                 messages=[
                     {"role": "system", "content": f"{system_prompt}\nContexto:\n{context}"},
                     {"role": "user", "content": message}
@@ -103,6 +103,7 @@ class LLMService:
 
             print("Context encontrado, continuando...")
             response = self.generate_response(
+                config["model"],
                 config['systemPrompt'],
                 context,
                 data['message']
@@ -117,7 +118,10 @@ class LLMService:
                 "output": response,
                 "timestamp": datetime.utcnow()
             })
-            
+
+            # Log antes de publicar a resposta no Redis
+            print(f"Publicando resposta no Redis: {response}")
+
             # Publicar resposta
             self.redis.publish(
                 f"user:{data['user_id']}:responses",
@@ -126,10 +130,9 @@ class LLMService:
                     "text": response
                 })
             )
-            
+
         except Exception as e:
             print(f"Erro no processamento da mensagem: {str(e)}")
-
     def process_files(self):
         """Processa arquivos enviados via Redis"""
         pubsub = self.redis.pubsub()
