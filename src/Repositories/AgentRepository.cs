@@ -207,12 +207,14 @@ public class AgentRepository : IAgentRepository
         {
             agent_id = reader.GetInt32("agent_id"),
             agent_name = reader.GetString("agent_name"),
-            agent_description = reader.IsDBNull(reader.GetOrdinal("agent_description")) 
-                ? null 
+            agent_description = reader.IsDBNull(reader.GetOrdinal("agent_description"))
+                ? null
                 : reader.GetString("agent_description"),
             agent_config = reader.GetString("agent_config"),
             agent_status = (AgentStatus)reader.GetInt32("agent_status"),
-            created_by_user = reader.GetInt32("created_by_user"),
+            created_by_user = reader.IsDBNull(reader.GetOrdinal("created_by_user"))
+                ? null
+                : reader.GetInt32("created_by_user"),
             agent_created_at = reader.GetDateTime("agent_created_at"),
             agent_updated_at = reader.GetDateTime("agent_updated_at")
         };

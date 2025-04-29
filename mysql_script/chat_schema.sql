@@ -22,7 +22,7 @@ create table if not exists agent(
     agent_updated_at timestamp default current_timestamp on update current_timestamp,
     foreign key (created_by_user)
         references user (user_id)
-        on delete restrict
+        on delete set null
         on update cascade
 )engine = InnoDB default charset = utf8mb4 collate = utf8mb4_unicode_ci;
 
