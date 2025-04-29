@@ -7,6 +7,8 @@ using MongoDB.Bson.Serialization.Attributes;
 namespace LLMChatbotApi.Models;
 public class Message
 {
+    internal object agent_id;
+
     [BsonElement("sender")]
     public required string Sender { get; set; }
 
