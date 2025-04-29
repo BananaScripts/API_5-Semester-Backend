@@ -7,21 +7,12 @@ namespace LLMChatbotApi.Services;
 public class DatabaseMongoDBService : DatabaseServiceBase<DatabaseMongoDBService>
 {
     private readonly IMongoDatabase mongoDB;
-
-    public DatabaseMongoDBService(IConfiguration configuration, ILogger<DatabaseMongoDBService> logger)
-        : base(logger)
-    {
-        var mongoConnectionString = configuration.GetConnectionString("MongoDB")
-            ?? throw new ArgumentNullException("Connection string 'MongoDB' not found.");
-        var mongoDatabaseName = configuration["ConnectionStrings:MongoDatabase"]
-            ?? throw new ArgumentNullException("Mongo database name not found.");
-
-        var client = new MongoClient(mongoConnectionString);
-        mongoDB = client.GetDatabase(mongoDatabaseName);
-    }
-
     public IMongoDatabase GetDatabase() => mongoDB;
-
+    public DatabaseMongoDBService(IMongoDatabase mongo, ILogger<DatabaseMongoDBService> logger)
+         : base(logger)
+    {
+        mongoDB = mongo;
+    }
     public override async Task VerifyConnection()
     {
         try
@@ -36,4 +27,4 @@ public class DatabaseMongoDBService : DatabaseServiceBase<DatabaseMongoDBService
             throw new DatabaseConnectionException("Erro MongoDB", ex);
         }
     }
-}
+};

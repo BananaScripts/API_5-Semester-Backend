@@ -74,11 +74,11 @@ class LLMService:
             print(f"Erro MongoDB: {str(e)}")
             return ""
     
-    def generate_response(self, system_prompt: str, context: str, message: str) -> str:
+    def generate_response(self, _model:str, system_prompt: str, context: str, message: str) -> str:
         """Gera resposta usando LLM"""
         try:
             completion = self.openai.chat.completions.create(
-                model="deepseek/deepseek-v3-base:free",
+                model=_model,
                 messages=[
                     {"role": "system", "content": f"{system_prompt}\nContexto:\n{context}"},
                     {"role": "user", "content": message}
@@ -90,43 +90,65 @@ class LLMService:
             print(f"Erro ao gerar resposta: {str(e)}")
             return "Desculpe, ocorreu um erro ao processar sua mensagem."
     
+    @staticmethod
+    def validate_message_data(data: Dict) -> bool:
+        required_keys = {"conversation_id", "user_id", "agent_id", "message"}
+        return all(key in data for key in required_keys)
+
     def handle_message(self, data: Dict):
         """Processa uma mensagem recebida"""
         try:
             print("Processando mensagem...")
+
+            if not self.validate_message_data(data):
+                print("Dados da mensagem inválidos. Ignorando.")
+                return
+
             config = self.get_agent_config(data['agent_id'])
             if not config:
                 print("Config não encontrada!")
                 return
+
             print("Config encontrada, continuando...")
             context = self.get_context(data['agent_id'])
 
-            print("Context encontrado, continuando...")
+            print("Contexto encontrado, gerando resposta...")
             response = self.generate_response(
-                config['systemPrompt'],
+                config["model"],
+                config["systemPrompt"],
                 context,
-                data['message']
+                data["message"]
             )
-            print("Response gerada com sucesso")
-            # Salvar no MongoDB
-            self.db.history.insert_one({
-                "conversation_id": data['conversation_id'],
-                "user_id": data['user_id'],
-                "agent_id": data['agent_id'],
-                "input": data['message'],
+
+            print("Resposta gerada, salvando no MongoDB...")
+            result = self.db.history.insert_one({
+                "conversation_id": data["conversation_id"],
+                "user_id": data["user_id"],
+                "agent_id": data["agent_id"],
+                "input": data["message"],
                 "output": response,
                 "timestamp": datetime.utcnow()
             })
-            
-            # Publicar resposta
-            self.redis.publish(
-                f"user:{data['user_id']}:responses",
-                json.dumps({
-                    "conversation_id": data['conversation_id'],
-                    "text": response
-                })
-            )
-            
+            print(f"Mensagem salva com ID: {result.inserted_id}")
+
+            redis_key = f"user:{data['user_id']}:responses:{data['conversation_id']}"
+            redis_value = json.dumps({
+                "conversation_id": data["conversation_id"],
+                "text": response
+            })
+
+            print("Publicando resposta no Redis...")
+            try:
+                # Publicar no canal (tempo real)
+                self.redis.publish(f"user:{data['user_id']}:responses", redis_value)
+
+                # Armazenar com TTL de 5 minutos
+                self.redis.set(redis_key, redis_value, ex=300)
+                print(f"Resposta armazenada no Redis com expire (chave: {redis_key})")
+
+            except Exception as pub_err:
+                print(f"Erro ao publicar ou armazenar no Redis: {str(pub_err)}. Resposta salva no banco.")
+
         except Exception as e:
             print(f"Erro no processamento da mensagem: {str(e)}")
 
@@ -149,7 +171,12 @@ class LLMService:
                             "content": "\n".join(chunks),
                             "uploaded_at": datetime.utcnow()
                         })
-                        
+
+                        # ✅ Marca arquivo como processado com TTL
+                        status_key = f"file_processed:{data['agent_id']}:{data['file_name']}"
+                        self.redis.set(status_key, "OK", ex=300)
+                        print(f"Arquivo processado, status gravado no Redis (chave: {status_key})")
+
                 except Exception as e:
                     print(f"Erro ao processar arquivo: {str(e)}")
 

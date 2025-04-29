@@ -40,7 +40,7 @@ public class Agent
 
     [Required]
     [Column("created_by_user")]
-    public int created_by_user { get; set; }
+    public int? created_by_user { get; set; }
 
     [Column("agent_created_at")]
     public DateTime agent_created_at { get; set; } = DateTime.UtcNow;
