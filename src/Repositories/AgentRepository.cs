@@ -47,33 +47,32 @@ public class AgentRepository : IAgentRepository
 
     public async Task<Agent> Update(Agent agent)
     {
-        using(var connection = _mysqlService.GetConnection())
+        using var connection = _mysqlService.GetConnection();
+        try
         {
-            try
-            {
-                await connection.OpenAsync();
-                using var cmd = new MySqlCommand(
-                    "UPDATE agent SET " +
-                    "agent_name = @name, " +
-                    "agent_description = @description, " +
-                    "agent_config = @config, " +
-                    "agent_status = @status " +
-                    "WHERE agent_id = @id", connection);
+            await connection.OpenAsync();
 
-                cmd.Parameters.AddWithValue("@name", agent.agent_name);
-                cmd.Parameters.AddWithValue("@description", agent.agent_description);
-                cmd.Parameters.AddWithValue("@config", agent.agent_config);
-                cmd.Parameters.AddWithValue("@status", (int)agent.agent_status);
-                cmd.Parameters.AddWithValue("@id", agent.agent_id);
+            using var cmd = new MySqlCommand(
+                "UPDATE agent SET " +
+                "agent_name = @name, " +
+                "agent_description = @description, " +
+                "agent_config = @config, " +
+                "agent_status = @status " +
+                "WHERE agent_id = @id", connection);
 
-                await cmd.ExecuteNonQueryAsync();
-                return agent;
-            }
-            catch (MySqlException ex)
-            {
-                _logger.LogError(ex, "Erro ao atualizar agente ID: {AgentId}", agent.agent_id);
-                throw;
-            }
+            cmd.Parameters.AddWithValue("@name", agent.agent_name);
+            cmd.Parameters.AddWithValue("@description", agent.agent_description);
+            cmd.Parameters.AddWithValue("@config", agent.agent_config);
+            cmd.Parameters.AddWithValue("@status", (int)agent.agent_status);
+            cmd.Parameters.AddWithValue("@id", agent.agent_id);
+
+            await cmd.ExecuteNonQueryAsync();
+            return agent;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Erro ao atualizar agente ID: {AgentId}", agent.agent_id);
+            throw;
         }
     }
 
