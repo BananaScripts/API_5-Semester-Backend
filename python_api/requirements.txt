@@ -1,6 +1,6 @@
 python-dotenv 
 redis 
-openai 
+google-generativeai
 pymongo 
 langchain_community
 langchain
