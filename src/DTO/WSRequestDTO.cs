@@ -22,4 +22,5 @@ public class WSRequestDTO
     [Column("text")]
     public string? Text { get; set; }
 
+    public bool Dev { get; set; }
 }
