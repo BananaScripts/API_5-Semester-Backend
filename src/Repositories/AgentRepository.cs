@@ -2,6 +2,7 @@ using LLMChatbotApi.Enums;
 using LLMChatbotApi.Interfaces;
 using LLMChatbotApi.Models;
 using LLMChatbotApi.Services;
+using Microsoft.AspNetCore.Mvc;
 using MySqlConnector;
 
 namespace LLMChatbotApi.Repositories;
@@ -219,4 +220,90 @@ public class AgentRepository : IAgentRepository
             agent_updated_at = reader.GetDateTime("agent_updated_at")
         };
     }
+
+    public async Task AddUsersToAgentPermission(int agentId, List<int> userIds)
+    {
+        using var connection = _mysqlService.GetConnection();
+        try
+        {
+            await connection.OpenAsync();
+            using var transaction = await connection.BeginTransactionAsync();
+            foreach (var userId in userIds)
+            {
+                using var cmd = new MySqlCommand(@"
+				INSERT INTO permission (user_id, agent_id, permission_type)
+				VALUES (@userId, @agentId, 1)
+				ON DUPLICATE KEY UPDATE permission_type = 1", connection, (MySqlTransaction)transaction);
+
+                cmd.Parameters.AddWithValue("@userId", userId);
+                cmd.Parameters.AddWithValue("@agentId", agentId);
+                await cmd.ExecuteNonQueryAsync();
+            }
+            await transaction.CommitAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Erro ao adicionar permissões para agente {AgentId}", agentId);
+            throw;
+        }
+    }
+
+    public async Task<bool> HasUserPermissionForAgent(int userId, int agentId)
+    {
+        using var connection = _mysqlService.GetConnection();
+        try
+        {
+            await connection.OpenAsync();
+            using var cmd = new MySqlCommand("SELECT 1 FROM permission WHERE user_id = @userId AND agent_id = @agentId LIMIT 1", connection);
+            cmd.Parameters.AddWithValue("@userId", userId);
+            cmd.Parameters.AddWithValue("@agentId", agentId);
+            using var reader = await cmd.ExecuteReaderAsync();
+            return await reader.ReadAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Erro ao verificar permissão do usuário {UserId} para agente {AgentId}", userId, agentId);
+            throw;
+        }
+    }
+    public async Task<List<User>> GetUsersWithPermission(int agentId)
+    {
+        using var connection = _mysqlService.GetConnection();
+        try
+        {
+            await connection.OpenAsync();
+
+            using var cmd = new MySqlCommand(@"
+                SELECT u.user_id, u.user_name, u.user_email, u.user_role, u.user_created_at, u.user_updated_at
+                FROM permission p
+                JOIN user u ON p.user_id = u.user_id
+                WHERE p.agent_id = @agentId", connection);
+
+            cmd.Parameters.AddWithValue("@agentId", agentId);
+
+            var users = new List<User>();
+            using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                users.Add(new User
+                {
+                    user_id = reader.GetInt32("user_id"),
+                    user_name = reader.GetString("user_name"),
+                    user_password = reader.GetString("user_password"),
+                    user_email = reader.GetString("user_email"),
+                    user_role = (UserRole)reader.GetInt32("user_role"),
+                    user_created_at = reader.GetDateTime("user_created_at"),
+                    user_updated_at = reader.GetDateTime("user_updated_at")
+                });
+            }
+
+            return users;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Erro ao buscar usuários permitidos do agente {AgentId}", agentId);
+            throw;
+        }
+    }
+
 }

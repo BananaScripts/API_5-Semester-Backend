@@ -1,5 +1,6 @@
 using LLMChatbotApi.Enums;
 using LLMChatbotApi.Models;
+using Microsoft.AspNetCore.Mvc;
 
 namespace LLMChatbotApi.Interfaces;
 
@@ -12,4 +13,8 @@ public interface IAgentRepository
     Task<List<Agent>> GetByCreator(int userId);
     Task<(List<Agent> Agents, int TotalCount)> GetAllPaginated(int page, int pageSize);
     Task<bool> UpdateStatus(int agentId, AgentStatus newStatus);
+    Task AddUsersToAgentPermission(int agentId, List<int> userIds);
+    Task<bool> HasUserPermissionForAgent(int userId, int agentId);
+    Task<List<User>> GetUsersWithPermission(int agentId);
+
 }

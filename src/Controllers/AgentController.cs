@@ -223,4 +223,44 @@ public class AgentController : ControllerBase
             return StatusCode(500, "Erro interno");
         }
     }
+
+    [HttpPost("{agentId}/permissions")]
+    [Authorize(Roles = "Admin,Curador")]
+    public async Task<IActionResult> AddPermission(int agentId, [FromBody] List<int> userIds)
+    {
+        if (userIds == null || userIds.Count == 0)
+            return BadRequest("Nenhum usuário fornecido.");
+
+        try
+        {
+            await _agentRepository.AddUsersToAgentPermission(agentId, userIds);
+            return Ok("Permissões adicionadas.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Erro ao adicionar permissões para o agente {AgentId}", agentId);
+            return StatusCode(500, "Erro interno");
+        }
+    }
+
+    [HttpGet("{agentId}/permissions")]
+    [Authorize(Roles = "Admin,Curador")]
+    public async Task<IActionResult> GetPermissionsByAgent(int agentId)
+    {
+        if (agentId <= 0)
+            return BadRequest("Id de agente inválido.");
+
+        try
+        {
+            var userIds = await _agentRepository.GetUsersWithPermission(agentId);
+            return Ok(userIds);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Erro ao buscar permissões do agente {AgentId}", agentId);
+            return StatusCode(500, "Erro interno");
+        }
+    }
+
+
 }
