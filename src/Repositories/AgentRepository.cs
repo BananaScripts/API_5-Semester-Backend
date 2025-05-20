@@ -219,4 +219,24 @@ public class AgentRepository : IAgentRepository
             agent_updated_at = reader.GetDateTime("agent_updated_at")
         };
     }
+
+    public Task SaveAgentFileAsync(int agentId, string fileName, string filePath, int userId)
+    {
+        throw new NotImplementedException();
+    }
+
+    public Task<List<AgentFile>> GetAgentFilesAsync(int agentId)
+    {
+        throw new NotImplementedException();
+    }
+
+    public Task<AgentFile?> GetAgentFileByIdAsync(int fileId)
+    {
+        throw new NotImplementedException();
+    }
+
+    public Task<bool> DeleteAgentFileAsync(int fileId)
+    {
+        throw new NotImplementedException();
+    }
 }

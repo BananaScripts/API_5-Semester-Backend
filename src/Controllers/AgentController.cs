@@ -17,11 +17,13 @@ public class AgentController : ControllerBase
 {
     private readonly IAgentRepository _agentRepository;
     private readonly ILogger<AgentController> _logger;
+    private readonly IWebHostEnvironment _env;
 
-    public AgentController(IAgentRepository agentRepository, ILogger<AgentController> logger)
+    public AgentController(IAgentRepository agentRepository, ILogger<AgentController> logger, IWebHostEnvironment env)
     {
         _agentRepository = agentRepository;
         _logger = logger;
+        _env = env;
     }
 
     private static AgentResponseDTO MapToDTO(Agent agent)
@@ -41,10 +43,6 @@ public class AgentController : ControllerBase
 
     [HttpPost]
     [Authorize(Roles = "Admin,Curador")]
-    [ProducesResponseType(typeof(AgentResponseDTO), StatusCodes.Status201Created)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> Create([FromBody] AgentCreateDTO request)
     {
         try
@@ -76,9 +74,6 @@ public class AgentController : ControllerBase
     }
 
     [HttpGet("{id}")]
-    [ProducesResponseType(typeof(AgentResponseDTO), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> GetById(int id)
     {
         try
@@ -95,11 +90,6 @@ public class AgentController : ControllerBase
 
     [HttpPut("{id}")]
     [Authorize(Roles = "Admin,Curador")]
-    [ProducesResponseType(typeof(AgentResponseDTO), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> Update(int id, [FromBody] AgentUpdateDTO request)
     {
         try
@@ -138,9 +128,6 @@ public class AgentController : ControllerBase
 
     [HttpDelete("{id}")]
     [Authorize(Roles = "Admin")]
-    [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> Delete(int id)
     {
         try
@@ -159,8 +146,6 @@ public class AgentController : ControllerBase
     }
 
     [HttpGet]
-    [ProducesResponseType(typeof(PaginatedResponse<AgentResponseDTO>), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 10)
     {
         try
@@ -187,10 +172,6 @@ public class AgentController : ControllerBase
 
     [HttpPatch("{id}/status")]
     [Authorize(Roles = "Admin,Curador")]
-    [ProducesResponseType(typeof(AgentResponseDTO), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> ChangeStatus(int id, [FromBody] AgentStatusChangeDTO request)
     {
         if (!ModelState.IsValid)
@@ -208,8 +189,6 @@ public class AgentController : ControllerBase
     }
 
     [HttpGet("creator/{userId}")]
-    [ProducesResponseType(typeof(List<AgentResponseDTO>), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> GetByCreator(int userId)
     {
         try
@@ -222,5 +201,72 @@ public class AgentController : ControllerBase
             _logger.LogError(ex, "Erro ao buscar agentes do criador {UserId}", userId);
             return StatusCode(500, "Erro interno");
         }
+    }
+    
+    [HttpPost("{id}/upload")]
+    [Authorize(Roles = "Admin,Curador")]
+    public async Task<IActionResult> UploadFiles(int id, List<IFormFile> files)
+    {
+        if (files == null || files.Count == 0)
+            return BadRequest("Nenhum arquivo enviado.");
+
+        var uploadsPath = Path.Combine(_env.ContentRootPath, "Uploads", "Agents", id.ToString());
+        Directory.CreateDirectory(uploadsPath);
+
+        foreach (var file in files)
+        {
+            var safeFileName = Path.GetFileName(file.FileName);
+            var filePath = Path.Combine(uploadsPath, safeFileName);
+
+            using (var stream = new FileStream(filePath, FileMode.Create))
+            {
+                await file.CopyToAsync(stream);
+            }
+
+            await _agentRepository.SaveAgentFileAsync(id, safeFileName, filePath, User.GetUserId());
+        }
+
+        return Ok(new { Message = "Arquivos enviados com sucesso." });
+    }
+
+    [HttpGet("{id}/files")]
+    [Authorize(Roles = "Admin,Curador")]
+    public async Task<IActionResult> GetFiles(int id)
+    {
+        var files = await _agentRepository.GetAgentFilesAsync(id);
+        return Ok(files);
+    }
+
+    [HttpGet("file/{fileId}")]
+    [Authorize(Roles = "Admin,Curador")]
+    public async Task<IActionResult> DownloadFile(int fileId)
+    {
+        var file = await _agentRepository.GetAgentFileByIdAsync(fileId);
+        if (file == null || !System.IO.File.Exists(file.FilePath))
+            return NotFound("Arquivo não encontrado.");
+
+        var memory = new MemoryStream();
+        using (var stream = new FileStream(file.FilePath, FileMode.Open))
+        {
+            await stream.CopyToAsync(memory);
+        }
+
+        memory.Position = 0;
+        return File(memory, "application/octet-stream", file.FileName);
+    }
+
+    [HttpDelete("file/{fileId}")]
+    [Authorize(Roles = "Admin,Curador")]
+    public async Task<IActionResult> DeleteFile(int fileId)
+    {
+        var file = await _agentRepository.GetAgentFileByIdAsync(fileId);
+        if (file == null)
+            return NotFound("Arquivo não encontrado.");
+
+        if (System.IO.File.Exists(file.FilePath))
+            System.IO.File.Delete(file.FilePath);
+
+        var deleted = await _agentRepository.DeleteAgentFileAsync(fileId);
+        return deleted ? NoContent() : StatusCode(500, "Erro ao excluir arquivo.");
     }
 }

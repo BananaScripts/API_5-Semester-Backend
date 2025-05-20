@@ -12,4 +12,8 @@ public interface IAgentRepository
     Task<List<Agent>> GetByCreator(int userId);
     Task<(List<Agent> Agents, int TotalCount)> GetAllPaginated(int page, int pageSize);
     Task<bool> UpdateStatus(int agentId, AgentStatus newStatus);
+    Task SaveAgentFileAsync(int agentId, string fileName, string filePath, int userId);
+    Task<List<AgentFile>> GetAgentFilesAsync(int agentId);
+    Task<AgentFile?> GetAgentFileByIdAsync(int fileId);
+    Task<bool> DeleteAgentFileAsync(int fileId);
 }

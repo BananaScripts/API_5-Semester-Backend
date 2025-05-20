@@ -6,6 +6,7 @@ using LLMChatbotApi.Interfaces;
 using LLMChatbotApi.Repositories;
 using LLMChatbotApi.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.IdentityModel.Tokens;
 using MongoDB.Driver;
 using MySqlConnector;
@@ -106,6 +107,10 @@ builder.Services.AddScoped<TokenService>();
 // Add services to the container.
 builder.Services.AddControllers();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
+builder.Services.Configure<FormOptions>(options =>
+{
+    options.MultipartBodyLengthLimit = 104857600; 
+});
 builder.Services.AddOpenApi();
 
 var app = builder.Build();

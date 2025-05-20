@@ -26,6 +26,19 @@ create table if not exists agent(
         on update cascade
 )engine = InnoDB default charset = utf8mb4 collate = utf8mb4_unicode_ci;
 
+
+CREATE TABLE IF NOT EXISTS agent_files (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    agent_id INT NOT NULL,
+    file_name VARCHAR(255) NOT NULL,
+    file_path TEXT NOT NULL,
+    uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    uploaded_by_user INT NOT NULL,
+    FOREIGN KEY (agent_id) REFERENCES agent(agent_id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE
+);
+
 create table if not exists permission(
     user_id int not null,
     agent_id int not null,
