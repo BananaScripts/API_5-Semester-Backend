@@ -194,7 +194,7 @@ public class ChatController : ControllerBase
                     _logger.LogWarning("Usuário {UserId} sem permissão para agente {AgentId}", currentRequest.UserId, currentRequest.AgentId);
                     var errorPayload = new
                     {
-                        error = "Usuário sem permissão para acessar esse agente."
+                        error = "user not allowed"
                     };
                     var errorMessage = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(errorPayload));
                     await webSocket.SendAsync(
