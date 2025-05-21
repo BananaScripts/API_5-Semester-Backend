@@ -15,6 +15,6 @@ public interface IAgentRepository
     Task<bool> UpdateStatus(int agentId, AgentStatus newStatus);
     Task AddUsersToAgentPermission(int agentId, List<int> userIds);
     Task<bool> HasUserPermissionForAgent(int userId, int agentId);
-    Task<List<User>> GetUsersWithPermission(int agentId);
+    Task<List<Agent>> GetAgentsByUserPermission(int agentId);
 
 }

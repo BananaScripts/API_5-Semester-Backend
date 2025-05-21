@@ -266,42 +266,31 @@ public class AgentRepository : IAgentRepository
             throw;
         }
     }
-    public async Task<List<User>> GetUsersWithPermission(int agentId)
+    public async Task<List<Agent>> GetAgentsByUserPermission(int userId)
     {
         using var connection = _mysqlService.GetConnection();
         try
         {
             await connection.OpenAsync();
 
-            using var cmd = new MySqlCommand(@"
-                SELECT u.user_id, u.user_name, u.user_email, u.user_role, u.user_created_at, u.user_updated_at
-                FROM permission p
-                JOIN user u ON p.user_id = u.user_id
-                WHERE p.agent_id = @agentId", connection);
+            var cmd = new MySqlCommand(@"
+			SELECT a.* FROM agent a
+			INNER JOIN permission p ON a.agent_id = p.agent_id
+			WHERE p.user_id = @userId", connection);
 
-            cmd.Parameters.AddWithValue("@agentId", agentId);
+            cmd.Parameters.AddWithValue("@userId", userId);
 
-            var users = new List<User>();
+            var agents = new List<Agent>();
             using var reader = await cmd.ExecuteReaderAsync();
             while (await reader.ReadAsync())
             {
-                users.Add(new User
-                {
-                    user_id = reader.GetInt32("user_id"),
-                    user_name = reader.GetString("user_name"),
-                    user_password = reader.GetString("user_password"),
-                    user_email = reader.GetString("user_email"),
-                    user_role = (UserRole)reader.GetInt32("user_role"),
-                    user_created_at = reader.GetDateTime("user_created_at"),
-                    user_updated_at = reader.GetDateTime("user_updated_at")
-                });
+                agents.Add(MapAgent(reader));
             }
-
-            return users;
+            return agents;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Erro ao buscar usuários permitidos do agente {AgentId}", agentId);
+            _logger.LogError(ex, "Erro ao buscar agentes com permissão do usuário {UserId}", userId);
             throw;
         }
     }

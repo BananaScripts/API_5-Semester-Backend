@@ -126,9 +126,8 @@ public class ChatController : ControllerBase
     /// </summary>
     /// <param name="userId">ID do usuário</param>
     /// <param name="redisService">Serviço Redis injetado</param>
-    [HttpGet("/ws/chat/open/{userId}")]
+    [HttpGet("/ws/chat/open")]
     public async Task WebSocketHandler(
-        [FromRoute] string userId,
         [FromServices] DatabaseRedisService redisService)
     {
         if (!HttpContext.WebSockets.IsWebSocketRequest)
