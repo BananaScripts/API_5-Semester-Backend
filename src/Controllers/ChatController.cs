@@ -192,9 +192,20 @@ public class ChatController : ControllerBase
                 if (!hasPermission)
                 {
                     _logger.LogWarning("Usuário {UserId} sem permissão para agente {AgentId}", currentRequest.UserId, currentRequest.AgentId);
-                    await webSocket.CloseAsync(WebSocketCloseStatus.PolicyViolation, "Sem permissão para esse agente", token);
-                    break;
+                    var errorPayload = new
+                    {
+                        error = "Usuário sem permissão para acessar esse agente."
+                    };
+                    var errorMessage = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(errorPayload));
+                    await webSocket.SendAsync(
+                        new ArraySegment<byte>(errorMessage),
+                        WebSocketMessageType.Text,
+                        true,
+                        token
+                    );
+                    continue;
                 }
+
 
 
                 if (!subscribed)
@@ -248,6 +259,7 @@ public class ChatController : ControllerBase
                     var simulatedMessage = new
                     {
                         conversation_id = Guid.NewGuid().ToString(),
+                        chat_id = payload.ChatId,
                         user_id = payload.UserId,
                         agent_id = payload.AgentId,
                         message = simulatedResponse
@@ -284,6 +296,7 @@ public class ChatController : ControllerBase
                 var wsMessage = new
                 {
                     conversation_id = Guid.NewGuid().ToString(),
+                    chat_id = payload.ChatId,
                     user_id = payload.UserId,
                     agent_id = payload.AgentId,
                     message = payload.Text
