@@ -104,7 +104,8 @@ public class MessageManagementService
 
     public async Task<bool> AddMessageAsync(string chatId, Message message)
     {
-        try{
+        try
+        {
             _logger.Log(LogLevel.Information, string.Format("Enviando mensagem para o banco \n  Texto: '{0}'\n  Sender: '{1}'", message.Text, message.Sender));
             var update = Builders<Chat>.Update
                 .Push(chat => chat.messages, message)
@@ -116,14 +117,16 @@ public class MessageManagementService
             );
             return result.ModifiedCount > 0;
         }
-        catch (MongoException ex){
+        catch (MongoException ex)
+        {
             _logger.LogError(ex, "Falha ao adicionar mensagem ao chat: {Message}", ex.Message);
             throw new DatabaseConnectionException("Erro MongoDB", ex);
         }
     }
     public async Task<bool> ChangeChatStatusAsync(string chatId, ChatStatus newStatus)
     {
-        try{
+        try
+        {
             _logger.Log(LogLevel.Information, string.Format("Atualizando status do chat para '{0}'", newStatus));
             var update = Builders<Chat>.Update
                 .Set(chat => chat.status, newStatus)
@@ -135,7 +138,8 @@ public class MessageManagementService
             );
             return result.ModifiedCount > 0;
         }
-        catch (MongoException ex){
+        catch (MongoException ex)
+        {
             _logger.LogError(ex, "Falha ao alterar status do Chat: {Message}", ex.Message);
             throw new DatabaseConnectionException("Erro MongoDB", ex);
         }
@@ -151,6 +155,19 @@ public class MessageManagementService
         catch (MongoException ex)
         {
             _logger.LogError(ex, "Falha ao deletar Chat: {Message}", ex.Message);
+            throw new DatabaseConnectionException("Erro MongoDB", ex);
+        }
+    }
+
+    public async Task<List<Chat>> GetAllChatsAsync()
+    {
+        try
+        {
+            return await _chatsCollection.Find(_ => true).ToListAsync();
+        }
+        catch (MongoException ex)
+        {
+            _logger.LogError(ex, "Erro ao buscar todos os chats");
             throw new DatabaseConnectionException("Erro MongoDB", ex);
         }
     }
