@@ -313,10 +313,15 @@ public class ChatController : ControllerBase
                     if (!success) _logger.LogError("Erro ao adicionar a mensagem do usuário no banco");
                 }
 
-                await pubsub.PublishAsync(
-                    RedisChannel.Literal("chat_messages"),
-                    JsonSerializer.Serialize(wsMessage)
-                );
+                    var _msgBytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(wsMessage));
+
+                    await webSocket.SendAsync(
+                        new ArraySegment<byte>(_msgBytes),
+                        WebSocketMessageType.Text,
+                        true,
+                        token
+                    );
+
             }
         }
         finally
