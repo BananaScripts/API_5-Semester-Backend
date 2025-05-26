@@ -121,211 +121,206 @@ public class ChatController : ControllerBase
         return NoContent();
     }
 
-    /// <summary>
-    /// Abre uma conexão WebSocket com o usuário para troca de mensagens em tempo real.
-    /// </summary>
-    /// <param name="userId">ID do usuário</param>
-    /// <param name="redisService">Serviço Redis injetado</param>
-    [HttpGet("/ws/chat/open")]
-    public async Task WebSocketHandler(
-        [FromServices] DatabaseRedisService redisService)
-    {
-        if (!HttpContext.WebSockets.IsWebSocketRequest)
-        {
-            HttpContext.Response.StatusCode = 400;
-            _logger.LogError("Tentativa de conexão inválida com websocket");
-            return;
-        }
+[HttpGet("/ws/chat/open")]
+public async Task WebSocketHandler(
+	[FromServices] DatabaseRedisService redisService)
+{
+	if (!HttpContext.WebSockets.IsWebSocketRequest)
+	{
+		HttpContext.Response.StatusCode = 400;
+		_logger.LogError("Tentativa de conexão inválida com websocket");
+		return;
+	}
 
-        using var webSocket = await HttpContext.WebSockets.AcceptWebSocketAsync();
-        var buffer = new byte[1024 * 4];
-        var pubsub = redisService.GetDatabase().Multiplexer.GetSubscriber();
-        using var cts = new CancellationTokenSource();
-        var token = cts.Token;
+	using var webSocket = await HttpContext.WebSockets.AcceptWebSocketAsync();
+	var buffer = new byte[1024 * 4];
+	var pubsub = redisService.GetDatabase().Multiplexer.GetSubscriber();
+	using var cts = new CancellationTokenSource();
+	var token = cts.Token;
 
-        WSRequestDTO? currentRequest = null;
-        bool subscribed = false;
-        RedisChannel? userChannel = null;
+	WSRequestDTO? currentRequest = null;
+	bool subscribed = false;
+	RedisChannel? userChannel = null;
 
-        try
-        {
-            while (webSocket.State == WebSocketState.Open)
-            {
-                var result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), token);
-                if (result.MessageType == WebSocketMessageType.Close)
-                {
-                    await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Conexão encerrada", token);
+	try
+	{
+		while (webSocket.State == WebSocketState.Open)
+		{
+			var result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), token);
+			if (result.MessageType == WebSocketMessageType.Close)
+			{
+				await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Conexão encerrada", token);
 
-                    if (currentRequest?.ChatId != null)
-                    {
-                        var success = await _chatService.ChangeChatStatusAsync(currentRequest.ChatId, ChatStatus.CLOSED);
-                        if (!success) _logger.LogError("Erro ao fechar o chat");
-                    }
+				if (currentRequest?.ChatId != null)
+				{
+					var success = await _chatService.ChangeChatStatusAsync(currentRequest.ChatId, ChatStatus.CLOSED);
+					if (!success) _logger.LogError("Erro ao fechar o chat");
+				}
 
-                    break;
-                }
+				break;
+			}
 
-                var json = Encoding.UTF8.GetString(buffer, 0, result.Count);
-                WSRequestDTO? payload;
-                try
-                {
-                    payload = JsonSerializer.Deserialize<WSRequestDTO>(json);
-                }
-                catch (JsonException ex)
-                {
-                    _logger.LogError(ex, "Erro ao desserializar JSON recebido via WebSocket");
-                    continue;
-                }
+			var json = Encoding.UTF8.GetString(buffer, 0, result.Count);
+			WSRequestDTO? payload;
+			try
+			{
+				payload = JsonSerializer.Deserialize<WSRequestDTO>(json);
+			}
+			catch (JsonException ex)
+			{
+				_logger.LogError(ex, "Erro ao desserializar JSON recebido via WebSocket");
+				continue;
+			}
 
-                if (payload == null)
-                {
-                    _logger.LogWarning("Payload WebSocket nulo");
-                    continue;
-                }
+			if (payload == null)
+			{
+				_logger.LogWarning("Payload WebSocket nulo");
+				continue;
+			}
 
-                currentRequest = payload;
+			currentRequest = payload;
 
-                // Após o bloco de desserialização e verificação de null
-                currentRequest = payload;
+			var hasPermission = await _agentRepository.HasUserPermissionForAgent(Int32.Parse(currentRequest.UserId), Int32.Parse(currentRequest.AgentId));
+			if (!hasPermission)
+			{
+				_logger.LogWarning("Usuário {UserId} sem permissão para agente {AgentId}", currentRequest.UserId, currentRequest.AgentId);
+				var errorPayload = new { error = "user not allowed" };
+				var errorMessage = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(errorPayload));
+				await webSocket.SendAsync(new ArraySegment<byte>(errorMessage), WebSocketMessageType.Text, true, token);
+				continue;
+			}
 
-                var hasPermission = await _agentRepository.HasUserPermissionForAgent(Int32.Parse(currentRequest.UserId), Int32.Parse(currentRequest.AgentId));
-                if (!hasPermission)
-                {
-                    _logger.LogWarning("Usuário {UserId} sem permissão para agente {AgentId}", currentRequest.UserId, currentRequest.AgentId);
-                    var errorPayload = new
-                    {
-                        error = "user not allowed"
-                    };
-                    var errorMessage = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(errorPayload));
-                    await webSocket.SendAsync(
-                        new ArraySegment<byte>(errorMessage),
-                        WebSocketMessageType.Text,
-                        true,
-                        token
-                    );
-                    continue;
-                }
+			if (!subscribed)
+			{
+				userChannel = RedisChannel.Literal($"user:{currentRequest.UserId}:responses");
+				await pubsub.SubscribeAsync((RedisChannel)userChannel, async (_, message) =>
+				{
+					if (webSocket.State != WebSocketState.Open)
+					{
+						_logger.LogWarning("WebSocket fechado. Não é possível enviar mensagem.");
+						return;
+					}
 
+					if (currentRequest.ChatId != null)
+					{
+						var success = await _chatService.ChangeChatStatusAsync(currentRequest.ChatId, ChatStatus.OPEN);
+						if (!success) _logger.LogError("Erro ao abrir o chat");
+					}
 
+					try
+					{
+						var redisResponse = JsonSerializer.Deserialize<JsonElement>(message!);
 
-                if (!subscribed)
-                {
-                    userChannel = RedisChannel.Literal($"user:{currentRequest.UserId}:responses");
-                    await pubsub.SubscribeAsync((RedisChannel)userChannel, async (_, message) =>
-                    {
-                        if (webSocket.State != WebSocketState.Open)
-                        {
-                            _logger.LogWarning("WebSocket fechado. Não é possível enviar mensagem.");
-                            return;
-                        }
+						var adaptedResponse = new
+						{
+							conversation_id = redisResponse.GetProperty("conversation_id").GetString(),
+							chat_id = currentRequest.ChatId,
+							user_id = currentRequest.UserId,
+							agent_id = currentRequest.AgentId,
+							message = redisResponse.TryGetProperty("message", out var msgProp)
+								? msgProp.GetString()
+								: redisResponse.GetProperty("text").GetString()
+						};
 
-                        if (currentRequest.ChatId != null)
-                        {
-                            var success = await _chatService.ChangeChatStatusAsync(currentRequest.ChatId, ChatStatus.OPEN);
-                            if (!success) _logger.LogError("Erro ao abrir o chat");
-                        }
+						var msgBytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(adaptedResponse));
 
-                        var msgBytes = Encoding.UTF8.GetBytes(message);
-                        try
-                        {
-                            await webSocket.SendAsync(
-                                new ArraySegment<byte>(msgBytes),
-                                WebSocketMessageType.Text,
-                                true,
-                                token
-                            );
+						await webSocket.SendAsync(
+							new ArraySegment<byte>(msgBytes),
+							WebSocketMessageType.Text,
+							true,
+							token
+						);
 
-                            if (currentRequest.ChatId != null)
-                            {
-                                var success = await _chatService.AddMessageAsync(
-                                    currentRequest.ChatId,
-                                    new Message("agent", message, DateTime.UtcNow)
-                                );
-                                if (!success) _logger.LogError("Erro ao adicionar a mensagem da IA no banco");
-                            }
-                        }
-                        catch (WebSocketException ex)
-                        {
-                            _logger.LogError(ex, "Erro ao enviar mensagem via WebSocket");
-                            cts.Cancel();
-                        }
-                    });
-                    subscribed = true;
-                }
+						if (currentRequest.ChatId != null)
+						{
+							var success = await _chatService.AddMessageAsync(
+								currentRequest.ChatId,
+								new Message("agent", adaptedResponse.message, DateTime.UtcNow)
+							);
+							if (!success) _logger.LogError("Erro ao adicionar a mensagem da IA no banco");
+						}
+					}
+					catch (Exception ex)
+					{
+						_logger.LogError(ex, "Erro ao adaptar e enviar mensagem da IA via WebSocket");
+						cts.Cancel();
+					}
+				});
+				subscribed = true;
+			}
 
-                if (payload.Dev == true)
-                {
-                    var simulatedResponse = $"Mensagem recebida, olá! {DateTime.UtcNow:HH:mm:ss}";
-                    var simulatedMessage = new
-                    {
-                        conversation_id = Guid.NewGuid().ToString(),
-                        chat_id = payload.ChatId,
-                        user_id = payload.UserId,
-                        agent_id = payload.AgentId,
-                        message = simulatedResponse
-                    };
+			if (payload.Dev == true)
+			{
+				var simulatedResponse = $"Mensagem recebida, olá! {DateTime.UtcNow:HH:mm:ss}";
+				var simulatedMessage = new
+				{
+					conversation_id = Guid.NewGuid().ToString(),
+					chat_id = payload.ChatId,
+					user_id = payload.UserId,
+					agent_id = payload.AgentId,
+					message = simulatedResponse
+				};
 
-                    var msgBytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(simulatedMessage));
+				var msgBytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(simulatedMessage));
 
-                    await webSocket.SendAsync(
-                        new ArraySegment<byte>(msgBytes),
-                        WebSocketMessageType.Text,
-                        true,
-                        token
-                    );
+				await webSocket.SendAsync(
+					new ArraySegment<byte>(msgBytes),
+					WebSocketMessageType.Text,
+					true,
+					token
+				);
 
-                    if (currentRequest.ChatId != null)
-                    {
-                        var successUser = await _chatService.AddMessageAsync(
-                            currentRequest.ChatId,
-                            new Message("user", payload.Text, DateTime.UtcNow)
-                        );
-                        var successAgent = await _chatService.AddMessageAsync(
-                            currentRequest.ChatId,
-                            new Message("agent", simulatedResponse, DateTime.UtcNow)
-                        );
+				if (currentRequest.ChatId != null)
+				{
+					var successUser = await _chatService.AddMessageAsync(
+						currentRequest.ChatId,
+						new Message("user", payload.Text, DateTime.UtcNow)
+					);
+					var successAgent = await _chatService.AddMessageAsync(
+						currentRequest.ChatId,
+						new Message("agent", simulatedResponse, DateTime.UtcNow)
+					);
 
-                        if (!successUser || !successAgent)
-                            _logger.LogError("Erro ao salvar mensagens de dev no banco");
-                    }
+					if (!successUser || !successAgent)
+						_logger.LogError("Erro ao salvar mensagens de dev no banco");
+				}
 
-                    continue;
-                }
+				continue;
+			}
 
-                // Caso padrão (não-dev)
-                var wsMessage = new
-                {
-                    conversation_id = Guid.NewGuid().ToString(),
-                    chat_id = payload.ChatId,
-                    user_id = payload.UserId,
-                    agent_id = payload.AgentId,
-                    message = payload.Text
-                };
+			var wsMessage = new
+			{
+				conversation_id = Guid.NewGuid().ToString(),
+				chat_id = payload.ChatId,
+				user_id = payload.UserId,
+				agent_id = payload.AgentId,
+				message = payload.Text
+			};
 
-                _logger.LogInformation("Mensagem sendo enviada ao Redis: {Message}", JsonSerializer.Serialize(wsMessage));
+			_logger.LogInformation("Mensagem sendo enviada ao Redis: {Message}", JsonSerializer.Serialize(wsMessage));
 
-                if (currentRequest.ChatId != null)
-                {
-                    var success = await _chatService.AddMessageAsync(
-                        currentRequest.ChatId,
-                        new Message("user", wsMessage.message, DateTime.UtcNow)
-                    );
-                    if (!success) _logger.LogError("Erro ao adicionar a mensagem do usuário no banco");
-                }
+			if (currentRequest.ChatId != null)
+			{
+				var success = await _chatService.AddMessageAsync(
+					currentRequest.ChatId,
+					new Message("user", wsMessage.message, DateTime.UtcNow)
+				);
+				if (!success) _logger.LogError("Erro ao adicionar a mensagem do usuário no banco");
+			}
 
-                await pubsub.PublishAsync(
-                    RedisChannel.Literal("chat_messages"),
-                    JsonSerializer.Serialize(wsMessage)
-                );
-            }
-        }
-        finally
-        {
-            if (userChannel.HasValue)
-                await pubsub.UnsubscribeAsync(userChannel.Value);
-            cts.Cancel();
-        }
-    }
+			await pubsub.PublishAsync(
+				RedisChannel.Literal("chat_messages"),
+				JsonSerializer.Serialize(wsMessage)
+			);
+		}
+	}
+	finally
+	{
+		if (userChannel.HasValue)
+			await pubsub.UnsubscribeAsync(userChannel.Value);
+		cts.Cancel();
+	}
+}
 
 
 }
