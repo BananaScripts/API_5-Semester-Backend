@@ -8,9 +8,14 @@ public class AgentConfigDTO
     public string SystemPrompt { get; set; } = string.Empty;
 
     [Required]
-    public string Model { get; set; } = "deepseek/deepseek-v3-base:free";
+    public string Model { get; set; } = "models/gemini-1.5-flash-latest"; // Modelo Gemini
 
     public List<string> AllowedFileTypes { get; set; } = new();
 
-    public Dictionary<string, object>? ModelParameters { get; set; }
+    public Dictionary<string, object> ModelParameters { get; set; } = new()
+    {
+        {"temperature", 0.9},
+        {"top_p", 1},
+        {"top_k", 40}
+    };
 }

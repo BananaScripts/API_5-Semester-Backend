@@ -2,7 +2,7 @@ from datetime import datetime
 import os
 import json
 import redis
-from openai import OpenAI
+import google.generativeai as genai
 from pymongo import MongoClient
 from pymongo.errors import PyMongoError
 from typing import List, Dict, Optional
@@ -40,13 +40,12 @@ class LLMService:
             port=int(os.getenv("REDIS_PORT")),
             password=os.getenv("REDIS_PASSWORD"),
             decode_responses=True)
-        print("Redis: ", self.redis.ping())
-        self.openai = OpenAI(
-            base_url=os.getenv("OPENROUTER_URL"),
-            api_key=os.getenv("OPENROUTER_API_KEY"))
+        
+        # Configuração do Gemini
+        genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+        self.model_name = 'model/gemini-1.5-flash-latest'  # Modelo padrão
         
         self.mongo = MongoClient(os.getenv("MONGO_URI"))
-        print("MongoDB: ", self.mongo.admin.command('ping'))
         self.db = self.mongo[os.getenv("MONGO_DB", "Chat")]
         self.file_processor = FileProcessor()
         
@@ -74,18 +73,22 @@ class LLMService:
             print(f"Erro MongoDB: {str(e)}")
             return ""
     
-    def generate_response(self, _model:str, system_prompt: str, context: str, message: str) -> str:
-        """Gera resposta usando LLM"""
+    def generate_response(self, _model: str, system_prompt: str, context: str, message: str) -> str:
+        """Gera resposta usando Gemini"""
         try:
-            completion = self.openai.chat.completions.create(
-                model=_model,
-                messages=[
-                    {"role": "system", "content": f"{system_prompt}\nContexto:\n{context}"},
-                    {"role": "user", "content": message}
-                ]
-            )
-            return completion.choices[0].message.content
+            model = genai.GenerativeModel(_model)
             
+            # Combinando prompt do sistema e contexto
+            full_prompt = f"{system_prompt}\n\nContexto:\n{context}\n\nPergunta: {message}"
+            
+            response = model.generate_content(full_prompt)
+            
+            # Verifica se há conteúdo válido na resposta
+            if response.candidates and len(response.candidates) > 0:
+                return response.text
+            else:
+                return "Desculpe, não consegui gerar uma resposta adequada."
+                
         except Exception as e:
             print(f"Erro ao gerar resposta: {str(e)}")
             return "Desculpe, ocorreu um erro ao processar sua mensagem."
@@ -114,7 +117,7 @@ class LLMService:
 
             print("Contexto encontrado, gerando resposta...")
             response = self.generate_response(
-                config["model"],
+                config.get("model", self.model_name),  # Usa modelo padrão se não configurado
                 config["systemPrompt"],
                 context,
                 data["message"]

@@ -223,4 +223,59 @@ public class AgentController : ControllerBase
             return StatusCode(500, "Erro interno");
         }
     }
+
+    [HttpPost("{agentId}/permissions")]
+    [Authorize(Roles = "Admin,Curador")]
+    public async Task<IActionResult> AddPermission(int agentId, [FromBody] List<int> userIds)
+    {
+        if (userIds == null || userIds.Count == 0)
+            return BadRequest("Nenhum usuário fornecido.");
+
+        try
+        {
+            await _agentRepository.AddUsersToAgentPermission(agentId, userIds);
+            return Ok("Permissões adicionadas.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Erro ao adicionar permissões para o agente {AgentId}", agentId);
+            return StatusCode(500, "Erro interno");
+        }
+    }
+
+
+    [HttpGet("permissions/user/{userId}")]
+    [ProducesResponseType(typeof(List<AgentResponseDTO>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> GetAgentsByUserPermission(int userId)
+    {
+        try
+        {
+            var agents = await _agentRepository.GetAgentsByUserPermission(userId);
+            return Ok(agents.Select(MapToDTO));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Erro ao buscar agentes com permissão do usuário {UserId}", userId);
+            return StatusCode(500, "Erro interno");
+        }
+    }
+
+[HttpGet("{agentId}/permissions/user/{userId}")]
+[ProducesResponseType(StatusCodes.Status200OK)]
+[ProducesResponseType(StatusCodes.Status500InternalServerError)]
+public async Task<IActionResult> CheckUserPermission(int agentId, int userId)
+{
+	try
+	{
+		var hasPermission = await _agentRepository.HasUserPermissionForAgent(userId, agentId);
+		return Ok(new { success = hasPermission });
+	}
+	catch (Exception ex)
+	{
+		_logger.LogError(ex, "Erro ao verificar permissão do usuário {UserId} para o agente {AgentId}", userId, agentId);
+		return StatusCode(500, new { success = false, error = "Erro interno" });
+	}
+}
+
 }
